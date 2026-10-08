@@ -1,0 +1,7 @@
+# Dependencias para Streamlit Community Cloud (la app sólo lee data/, no descarga nada).
+# Para desarrollo local se usa uv (pyproject.toml + uv.lock).
+numpy>=2.0
+pandas>=2.2
+plotly>=5.24
+pyarrow>=17
+streamlit>=1.40

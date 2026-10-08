@@ -1,0 +1,24 @@
+[project]
+name = "hpca-streamlit"
+version = "0.1.0"
+description = "App de Streamlit: Hierarchical PCA (Avellaneda 2019) sobre los principales índices bursátiles"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "plotly>=5.24",
+    "pyarrow>=17",
+    "streamlit>=1.40",
+]
+
+[dependency-groups]
+datos = [
+    "lxml>=5.3",
+    "requests>=2.32",
+    "yfinance>=0.2.50",
+]
+
+[tool.uv]
+package = false
+default-groups = []

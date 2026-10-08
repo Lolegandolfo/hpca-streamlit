@@ -1,0 +1,58 @@
+{
+ "actualizado": "2026-10-07",
+ "anios_resumen": 5,
+ "indices": {
+  "sp500": {
+   "nombre": "S&P 500 · EE.UU.",
+   "moneda": "USD"
+  },
+  "sx5e": {
+   "nombre": "Euro Stoxx 50 · Eurozona",
+   "moneda": "EUR"
+  },
+  "dax": {
+   "nombre": "DAX 40 · Alemania",
+   "moneda": "EUR"
+  },
+  "cac": {
+   "nombre": "CAC 40 · Francia",
+   "moneda": "EUR"
+  },
+  "ftse": {
+   "nombre": "FTSE 100/250 · Reino Unido",
+   "moneda": "GBP"
+  },
+  "nikkei": {
+   "nombre": "Nikkei 225 · Japón",
+   "moneda": "JPY"
+  },
+  "hsi": {
+   "nombre": "Hang Seng · Hong Kong",
+   "moneda": "HKD"
+  },
+  "kospi": {
+   "nombre": "KOSPI 200 · Corea del Sur",
+   "moneda": "KRW"
+  },
+  "nifty": {
+   "nombre": "Nifty 50 · India",
+   "moneda": "INR"
+  },
+  "asx": {
+   "nombre": "S&P/ASX 50 · Australia",
+   "moneda": "AUD"
+  },
+  "tsx": {
+   "nombre": "S&P/TSX 60 · Canadá",
+   "moneda": "CAD"
+  },
+  "b3": {
+   "nombre": "B3 (principales) · Brasil",
+   "moneda": "BRL"
+  },
+  "merval": {
+   "nombre": "Merval · Argentina",
+   "moneda": "USD (CCL)"
+  }
+ }
+}
