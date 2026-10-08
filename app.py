@@ -22,6 +22,7 @@ DATA = Path(__file__).resolve().parent / "data"
 COLOR_PCA = "#eb6834"
 COLOR_HPCA = "#2a78d6"
 N_EV = 5
+MAX_N_HEATMAP_DECIMAL = 120  # por encima, el heatmap se envía comprimido
 PAPER = "https://arxiv.org/abs/1910.02310"
 
 
@@ -36,7 +37,9 @@ def cargar_meta():
     return meta, resumen, disponibles
 
 
-@st.cache_data
+# cache_resource devuelve el mismo objeto sin copiarlo en cada interacción (cache_data lo
+# des-serializa cada vez, y para el S&P 500 son decenas de MB). Ninguna función los modifica.
+@st.cache_resource(max_entries=20)
 def cargar_indice(clave):
     precios = pd.read_parquet(DATA / f"{clave}_precios.parquet").astype(float)
     sectores = json.loads((DATA / f"{clave}_sectores.json").read_text(encoding="utf-8"))
@@ -45,7 +48,7 @@ def cargar_indice(clave):
     return precios, sectores, fx
 
 
-@st.cache_data(show_spinner="Calculando PCA y HPCA…")
+@st.cache_resource(show_spinner="Calculando PCA y HPCA…", max_entries=40)
 def calcular(clave, anios):
     precios, sectores, fx = cargar_indice(clave)
     r, etiquetas, descartadas = hc.preparar_retornos(precios, sectores, anios, fx)
@@ -55,7 +58,8 @@ def calcular(clave, anios):
     return a
 
 
-@st.cache_data(show_spinner="Simulando el rebalanceo mensual de la cartera de mínima varianza…")
+@st.cache_resource(show_spinner="Simulando el rebalanceo mensual de la cartera de mínima varianza…",
+                   max_entries=40)
 def calcular_rotacion(clave, anios):
     precios, sectores, fx = cargar_indice(clave)
     r, etiquetas, _ = hc.preparar_retornos(precios, sectores, anios, fx)
@@ -82,11 +86,20 @@ def fig_heatmap(A, a, modo):
         escala, zmin, zmax, titulo_barra = "RdBu_r", -0.3, 0.3, "R − R̃"
     else:
         escala, zmin, zmax, titulo_barra = "Blues", 0, 1, "ρ"
+    if n > MAX_N_HEATMAP_DECIMAL:
+        # Matrices grandes: se envían en centésimos como enteros de 1 byte (8 veces menos datos
+        # que floats). Para el S&P 500 pasa de ~3 MB a ~0,4 MB, clave para que cargue en el celular.
+        z = np.clip(np.round(A * 100), -127, 127).astype(np.int8)
+        zmin, zmax = zmin * 100, zmax * 100
+        ticks = np.linspace(zmin, zmax, 5)
+        colorbar = dict(title=titulo_barra, thickness=12, tickvals=ticks, ticktext=[f"{t / 100:.2f}" for t in ticks])
+        hover = "%{y}<br>%{x}<br><b>%{z}</b> (centésimos)<extra></extra>"
+    else:
+        z, colorbar = np.round(A, 3).astype(np.float32), dict(title=titulo_barra, thickness=12)
+        hover = "%{y}<br>%{x}<br><b>%{z:.2f}</b><extra></extra>"
     fig = go.Figure(go.Heatmap(
-        z=np.round(A, 3), x=etiquetas_ejes, y=etiquetas_ejes,
-        colorscale=escala, zmin=zmin, zmax=zmax, zmid=0 if modo == "Diferencia" else None,
-        colorbar=dict(title=titulo_barra, thickness=12),
-        hovertemplate="%{y}<br>%{x}<br><b>%{z:.2f}</b><extra></extra>",
+        z=z, x=etiquetas_ejes, y=etiquetas_ejes, colorscale=escala, zmin=zmin, zmax=zmax,
+        zmid=0 if modo == "Diferencia" else None, colorbar=colorbar, hovertemplate=hover,
     ))
     linea = dict(type="line", line=dict(color="rgba(20,20,20,0.55)", width=0.8))
     for _, ini, fin in bloques(a["etiquetas"])[:-1]:
@@ -243,9 +256,13 @@ c[4].metric("EV1 · HPCA", f"{a['lam_hpca'][0] / a['n']:.1%}",
 c[5].metric("Factores sobre ruido", a["factores_mp"],
             help=f"Autovalores de la matriz empírica por encima de la cota de Marchenko-Pastur λ⁺ = {a['lam_mp']:.2f}.")
 
-tab_ev, tab_corr, tab_rot, tab_sec = st.tabs(["📈 Autovectores", "🟦 Correlaciones", "🔄 Rotación", "🗂️ Sectores"])
+# Selector en vez de st.tabs: las pestañas calculan y envían todo su contenido aunque no se vean;
+# así sólo se procesa la sección visible (mucho más liviano en el celular).
+SECCIONES = ["📈 Autovectores", "🟦 Correlaciones", "🔄 Rotación", "🗂️ Sectores"]
+seccion = st.segmented_control("Sección", SECCIONES, default=SECCIONES[0], key="seccion",
+                               label_visibility="collapsed") or SECCIONES[0]
 
-with tab_ev:
+if seccion == SECCIONES[0]:
     st.markdown(
         "Cada punto es una acción (eje x, agrupadas por sector) y su altura es el **peso** de esa acción en el "
         "autovector. HPCA forma *escalones* por sector; PCA suele ser una versión ruidosa del mismo patrón. "
@@ -268,7 +285,7 @@ with tab_ev:
         st.caption("PCA siempre queda por encima: por construcción es el óptimo. "
                    "La pregunta es cuánto se pierde al imponer la estructura sectorial.")
 
-with tab_corr:
+if seccion == SECCIONES[1]:
     modo = st.segmented_control("Matriz", ["Empírica", "HPCA", "Diferencia"], default="Empírica")
     modo = modo or "Empírica"
     fuera = a["etiquetas"][:, None] != a["etiquetas"][None, :]
@@ -288,7 +305,7 @@ with tab_corr:
         "que HPCA asume nula."
     )
 
-with tab_rot:
+if seccion == SECCIONES[2]:
     st.markdown(
         "Cartera de **mínima varianza** rebalanceada mes a mes: se estima la matriz de riesgo con el último año "
         "de datos y se mantiene la cartera durante el mes siguiente. La **rotación** Σ|Δw| mide cuánto cambian "
@@ -313,7 +330,7 @@ with tab_rot:
         "tiene el índice, más una varianza propia por acción."
     )
 
-with tab_sec:
+if seccion == SECCIONES[3]:
     sec = pd.Series(a["etiquetas"], index=a["tickers"])
     tabla_sec = (sec.groupby(sec, sort=False).apply(lambda s: ", ".join(s.index))
                  .rename("Acciones").to_frame())
