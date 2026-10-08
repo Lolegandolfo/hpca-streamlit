@@ -33,6 +33,7 @@ DATA = RAIZ / "data"
 DATA.mkdir(exist_ok=True)
 INICIO = "2015-01-01"
 ANIOS_RESUMEN = 5
+ANIOS_APP = range(3, 11)  # opciones del slider "Años de historia" de la app
 UA = {"User-Agent": "hpca-streamlit/0.1 (proyecto educativo)"}
 WIKI = "https://en.wikipedia.org/wiki/"
 
@@ -209,6 +210,24 @@ def construir(clave):
     return resumir(clave)
 
 
+def precalcular_rotacion(clave, precios, sectores, fx):
+    """
+    Rotación de la cartera de mínima varianza para cada opción de años del slider de la app.
+    Es el cálculo más pesado de la app (un rebalanceo por mes), así que se guarda ya hecho.
+    """
+    salida = {}
+    for anios in ANIOS_APP:
+        r, etiquetas, _ = hc.preparar_retornos(precios, sectores, anios, fx)
+        mensual, diarios = hc.rotacion_min_var(r, etiquetas)
+        salida[str(anios)] = {
+            "fechas": [d.strftime("%Y-%m-%d") for d in mensual.index],
+            **{col: [None if pd.isna(v) else round(float(v), 4) for v in mensual[col]] for col in mensual.columns},
+            "vol_pca": float(diarios["PCA"].std() * np.sqrt(252)),
+            "vol_hpca": float(diarios["HPCA"].std() * np.sqrt(252)),
+        }
+    (DATA / f"{clave}_rotacion.json").write_text(json.dumps(salida, ensure_ascii=False), encoding="utf-8")
+
+
 def resumir(clave):
     """Resumen comparativo con los últimos ANIOS_RESUMEN años, a partir de los datos ya guardados."""
     nombre, moneda, _ = INDICES[clave]
@@ -216,6 +235,7 @@ def resumir(clave):
     sectores = json.loads((DATA / f"{clave}_sectores.json").read_text(encoding="utf-8"))
     archivo_fx = DATA / f"{clave}_fx.parquet"
     fx = pd.read_parquet(archivo_fx).iloc[:, 0] if archivo_fx.exists() else None
+    precalcular_rotacion(clave, precios, sectores, fx)
     r, etiquetas, _ = hc.preparar_retornos(precios, sectores, ANIOS_RESUMEN, fx)
     a = hc.analizar(r, etiquetas)
     mensual, diarios = hc.rotacion_min_var(r, etiquetas)

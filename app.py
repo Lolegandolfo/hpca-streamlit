@@ -61,9 +61,21 @@ def calcular(clave, anios):
 @st.cache_resource(show_spinner="Simulando el rebalanceo mensual de la cartera de mínima varianza…",
                    max_entries=40)
 def calcular_rotacion(clave, anios):
+    """
+    (rotación mensual, volatilidad anual por método). Se lee precalculada de data/{clave}_rotacion.json
+    (la genera scripts/construir_datos.py); si no está, se calcula en el momento.
+    """
+    archivo = DATA / f"{clave}_rotacion.json"
+    if archivo.exists():
+        guardado = json.loads(archivo.read_text(encoding="utf-8")).get(str(anios))
+        if guardado:
+            mensual = pd.DataFrame({k: v for k, v in guardado.items() if isinstance(v, list) and k != "fechas"},
+                                   index=pd.to_datetime(guardado["fechas"]))
+            return mensual, {"PCA": guardado["vol_pca"], "HPCA": guardado["vol_hpca"]}
     precios, sectores, fx = cargar_indice(clave)
     r, etiquetas, _ = hc.preparar_retornos(precios, sectores, anios, fx)
-    return hc.rotacion_min_var(r, etiquetas)
+    mensual, diarios = hc.rotacion_min_var(r, etiquetas)
+    return mensual, {m: float(diarios[m].std() * np.sqrt(252)) for m in ("PCA", "HPCA")}
 
 
 def bloques(etiquetas):
@@ -311,14 +323,14 @@ if seccion == SECCIONES[2]:
         "de datos y se mantiene la cartera durante el mes siguiente. La **rotación** Σ|Δw| mide cuánto cambian "
         "los pesos en cada rebalanceo: más rotación implica más costos de transacción y una estimación más inestable."
     )
-    mensual, diarios = calcular_rotacion(clave, anios)
+    mensual, volatilidad = calcular_rotacion(clave, anios)
     k = st.columns(4)
     k[0].metric("Rotación media · PCA", f"{mensual['Rotación PCA'].mean():.2f}")
     k[1].metric("Rotación media · HPCA", f"{mensual['Rotación HPCA'].mean():.2f}",
                 delta=f"{mensual['Rotación HPCA'].mean() / mensual['Rotación PCA'].mean() - 1:+.0%} vs PCA",
                 delta_color="inverse")
-    k[2].metric("Volatilidad anual · PCA", f"{diarios['PCA'].std() * np.sqrt(252):.1%}")
-    k[3].metric("Volatilidad anual · HPCA", f"{diarios['HPCA'].std() * np.sqrt(252):.1%}")
+    k[2].metric("Volatilidad anual · PCA", f"{volatilidad['PCA']:.1%}")
+    k[3].metric("Volatilidad anual · HPCA", f"{volatilidad['HPCA']:.1%}")
     st.plotly_chart(fig_rotacion_tiempo(mensual), width="stretch", theme="streamlit")
 
     st.subheader("Comparación entre mercados")

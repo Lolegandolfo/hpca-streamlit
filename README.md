@@ -60,6 +60,14 @@ uv run --group datos python scripts/construir_datos.py nikkei dax   # sólo algu
 
 Descarga todo de nuevo. Puede tardar varios minutos por la cantidad de tickers. Después hay que commitear `data/`.
 
+El script también **precalcula la rotación de la cartera de mínima varianza** para cada índice y cada opción de años del slider (`data/*_rotacion.json`). Es el cálculo más pesado de la app, y así la sección Rotación carga al instante.
+
+Si cambiás algo de `hpca_core.py` y querés recalcular el resumen y la rotación sin volver a descargar precios:
+
+```bash
+uv run --group datos python scripts/construir_datos.py --solo-resumen
+```
+
 ## Deploy en Streamlit Community Cloud
 
 1. Subir el repo a GitHub.
